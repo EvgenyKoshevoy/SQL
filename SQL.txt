@@ -1,0 +1,353 @@
+SELECT
+
+    SELECT ... FROM ... WHERE ... GROUP BY ... HAVING ... ORDER BY
+
+    DISTINCT
+    
+    select distinct vend_id from Products;
+        Заставляет СУБД вернуть только записи с отличающимися значениями vend_id.
+        
+    TOP
+        SELECT TOP 5 prod_name FROM Products;        
+        Извлечь 5 первых записей из таблицы Products;
+        
+        SELECT TOP (1) PERCENT orderid, orderdate, custid, empid FROM Sales.Orders ORDER BY orderdate DESC;
+            Число возвращаемых столбцов вычисляется в процентах.
+    
+    ORDER BY
+        SELECT prod_name FROM Products ORDER BY prod_name;
+        
+        ORDER BY заставляет СУБД отсортировать данные в алфавитном порядке по указанному столбцу.
+        ORDER BY должен быть последним в инструкции SELECT.
+        Данные могут сортироваться и по столбцу, который не извлекается в самом запросе.
+        При наличии WHERE должен следовать после него.
+        
+        DESC (DESCENDING) - указать сортировку в обратном порядке.
+            SELECT prod_id, prod_price, prod_name FROM Produxts ORDER BY prod_price DESC;
+            
+            При сортировке по нескольким столбцам DESC применяется только к тому столбцу, после которого оно стоит в запросе:
+            SELECT prod_id, prod_price, prod_name FROM Products ORDER BY prod_price DESC, prod_name;
+        
+        ASC (ASCENDING) - сортировка по возрастанию. Используется по умолчанию.
+    
+    WHERE   
+        Указатель критерия отбора. Указывается сразу после названия таблицы:
+        SELECT prod_name, prod_price FROM Products WHERE prod_price = 3.49;
+        
+        Условные операторы:
+            =   Равенство
+            <>  Неравенство
+            !=  Неравенство
+            <   Меньше
+            <=  Меньше или равно
+            !<  Не меньше
+            >   Больше
+            >=  Больше или равно
+            !>  Не больше
+            BETWEEN     Вхождение в диапазон
+                SELECT prod_name, prod_price FROM Products WHERE prod_price BETWEEN 5 AND 10;
+            IS NULL     Значение NULL
+            
+        AND - для фильтрации данных по нескольким столбцам и добавление условий в предложение WHERE
+            SELECT prod_id, prod_price, prod_name FROM Products WHERE vend_id = 'DLL01' AND prod_price <= 4;
+        
+        OR - заставляет СУБД извлекать только те строки, которые удовлетворяют хотя бы одному условию. В большинстве СУБД второе условие даже не рассматривается, если выполняется первое.
+            SELECT prod_name, prod_price FROM Products WHERE vend_id = 'DLL01' OR vend_id = 'BRS01';
+        
+        Порядок обработки операторов:
+            SQL вначале обрабатывает логические операторы AND, а потом OR.
+            Для корректной обработки запросов требуется использовать скобки:
+                SELECT prod_name, prod_price FROM Products WHERE (vend_id = 'DLL01' OR vend_id = 'BRS01') AND prod_price >=10;
+        
+        IN - ключевое слово для указания списка значений, обрабатываемых так же, как это делается в случае применения оператора OR.
+            SELECT prod_name, prod_price FROM Products WHERE vend_id IN ('DLL01', 'BRS01') ORDER BY prod_name;
+        
+        NOT - ключевое слово для отрицания какого-либо условия.
+            SELECT prod_name FROM Products WHERE NOT vend_id = 'DLL01' ORDER BY prod_name;
+            
+    GROUP BY
+        
+        Заставляет СУБД сначала группировать данные, а затем выполнять вычисления по каждой группе.
+        
+        SELECT vend_id, COUNT(*) AS num_prods FROM Products GROUP BY vend_id;
+        
+        Правила:
+            - В преложениях GROUP BY можно указывать произвольное число столбцов. Это позволяет вкладывать группы одна в другую, благодаря чему обеспечивается тщательный контроль над тем, какие данные подлежать группировке.
+            - Если в предложении GROUP BY используются вложенные группы, данные подытоживаются для последней указанной группы.
+            - Каждый столбец, указанный в предложении GROUP BY должен быть извлекаемым столбцом или выражением (не итоговой функцией). Если в SELECT используется какое-то выражение, то же самое выражение должно юыть указано в предложении GROUP BY. Псевдонимы применять нельзя.
+            - В большинстве реализаций SQL нельзя указывать в предложении GROUP BY столбцы, в которых содержаться данные переменной длины (например текстовые поля или поля комментариев).
+            - За исключением инструкций, связанных с итоговыми вычислениями, каждый столбец, упомянутый в инструкции SELECT, должен быть представлен в предложении GROUP BY.
+            - Если столбец, по которому выполняется группировка, содержит строку со значением NULL, оно будет трактоваться как отдельная группа. Если имеется несколько строк со значениями NULL, они будут сгруппированы вместе.
+            - Предложение GROUP BY должно стоять после предложения WHERE и перед предложением ORDER BY.
+            
+            Поддерживается необязательное ключевое слово ALL. Его можно применять для извлечения всех групп, даже тех, которые не имеют соответствующих строк.
+    
+        HAVING
+            
+            Работает аналогично WHERE, но в отличии от него фильтрует группы, а не строки. Поддерживает все операторы предложения WHERE.
+            
+            SELECT cust_id, COUNT(*) AS orders FROM Orders GROUP BY cust_id HAVING COUNT(*) >= 2;
+            
+            SELECT vend_id, COUNT(*) AS num_prods FROM Products WHERE prod_price >= 4 GROUP BY vend_id HAVING COUNT(*) >= 2;
+                Получить количество всех поставщиков, предлагающих не менее двух товаров по цене от 4 долларов включительно.
+        
+        С GROUP BY всегда нужно использовать ORDER BY. Это гарантирует правильную сортировку данных.
+        
+            SELECT order_num, COUNT(*) AS items
+            FROM OrderItems
+            GROUP BY order_num
+            HAVING COUNT(*) >= 3
+            ORDER BY items, order_num;
+
+WITH
+    Определяет обобщенное табличное выражение.
+    
+    Синтаксис: 
+        WITH [(column_name [, ... n])]
+        AS (CTE_query_definition)
+    
+    
+    После ОТВ должен идти одиночный запрос SELECT, INSERT, UPDATE, MERGE или DELETE.
+    
+    WITH ProductsCTE (prod_id, prod_name, prod_price)
+    AS (SELECT prod_id, prod_name, prod_price FROM Products)
+    SELECT * FROM ProductsCTE;
+    
+OVER
+    инструкция, которая определяет окно для применения оконной функции.
+    
+    Оконная функция - это функция, которая соответственно работает с окном, т.е. набором строк, и возвращает значение на основе неких вычислений.
+    
+    Синтаксис:
+        Оконная функция (столбец для вычислений) OVER (
+            [PARTITION BY стобец для группировки]
+            [ORDER BY столбец для сортировки]
+            [ROWS или RANGE выражение для ограничения строк в пределах группы]
+        )
+    
+    SELECT ProductId, ProductName, CategoryId, Price,
+    SUM(Price) OVER (PARTITION BY CategoryId) AS [SUM],
+    AVG(Price) OVER (PARTITION BY CategoryId) AS [AVG]
+    FROM TestTable;
+        
+        Для ограничения строк можно использовать:
+            - ROWS - ограничивает строки (вместе с ORDER BY);
+            - RANGE - логически ограничивает строки за счет указания диапазона значений в отношении к значению текущей строки (вместе с ORDER BY);
+            - UNBOUNDED PRECEDING — указывает, что окно начинается с первой строки группы. Данная инструкция используется только как  начальная точка окна;
+            - UNBOUNDED FOLLOWING – с помощью данной инструкции можно указать, что окно заканчивается на последней строке группы, соответственно, она может быть указана только как конечная точка окна;
+            - CURRENT ROW – инструкция указывает, что окно начинается или заканчивается на текущей строке, она может быть задана как начальная или как конечная точка;
+            - BETWEEN «граница окна» AND «граница окна» — указывает нижнюю и верхнюю границу окна, при этом верхняя граница не может быть меньше нижней границы;
+            - «Значение» PRECEDING – определяет число строк перед текущей строкой. Эта инструкция не допускается в предложении RANGE;
+            - «Значение» FOLLOWING — определяет число строк после текущей строки. Если FOLLOWING используется как начальная точка окна, то конечная точка должна быть также указана с помощью FOLLOWING. Эта инструкция не допускается в предложении RANGE.
+    
+    Агрегатные оконные функции
+        Это функции, которые выполняют на наборе данных вычисления и возвращают итоговое значение.
+        
+        SUM - сумма в столбце
+        AVG - среднее значение в столбце
+        MAX - макимальное значение в столбце
+        MIN - минимальное значение в столбце
+        COUNT - вычисляет количество значений в столбце. Значение NULL не учитываются. (COUNT(*) учитывает и NULL)
+        COUNT_BIG - то же что и COUNT, только возвращает BIGINT
+    
+    Ранжирующие оконные функции
+        Ранжируют значение для каждой строки в группе.
+        
+        ROW_NUMBER - возвращает номер строки
+        RANK - возвращает ранг каждой сроки
+        DENSE_RANK - возвращает ранг каждой строки. В отличии от RANK, для одинаковых значений возвращает ранг, не пропуская следующий (в случае одинаковых значений).
+        NTILE - возвращает рещультирующий набор, разделенный на группы по определенному столбцу.
+        
+        SELECT ProductId, ProductName, CategoryId, Price,
+        ROW_NUMBER() OVER (PARTITION BY CategoryId ORDER BY ProductId) AS [ROW NUMBER],
+        RANK() OVER (PARTITION BY CategoryId ORDER BY Price) AS [RANK]
+        FROM TestTable
+        ORDER BY ProductId;
+         
+    Функции смещения
+        SELECT ProductId, ProductName, CategoryId, Price,
+        LEAD(ProductId) OVER (PARTITION BY CategoryId ORDER BY ProductId) AS [LEAD],
+        LAG(ProductId) OVER (PARTITION BY CategoryId ORDER BY ProductId) AS [LAG],
+        FIRST_VALUE(ProductId) OVER (PARTITION BY CategoryId ORDER BY ProductId 
+            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS [FIRST_VALUE],
+        LAST_VALUE(ProductId) OVER (PARTITION BY CategoryId
+            ORDER BY ProductId ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS [LAST_VALUE],
+        LEAD(ProductId, 2) OVER (PARTITION BY CategoryId ORDER BY ProductId) AS [LEAD_2],
+        LAG(ProductId, 2, 0) OVER (PARTITION BY CategoryId ORDER BY ProductId) AS [LAG_2]
+        FROM TestTable
+        ORDER BY ProductId;
+
+JOIN
+    
+    Принимает на вход две таблицы. Выполняет операции трех видос соединения: перекрестного, внутреннего и внешнего.
+    
+    Перекрестное включает только декартово произведение.
+        
+        Это простейший вид оператора JOIN.
+        
+        SELECT C.custid, E.empid
+        FROM Sales.Customers AS C
+            CROSS JOIN HR.Employees AS E;
+        
+        Перекрестное самосоединение
+        
+            SELECT 
+            E1.empid, E1.firstname, E1.lastname,
+            E2.empid, E2.firstname, E2.lastname
+            FROM HR.Employees AS E1
+                CROSS JOIN HR.Employees AS E2;
+    
+    Внуреннее состоит из декартового произведения и фильтраций.
+        
+        Подразумевает наличие между именами таблиц ключевого слова INNER JOIN. INNER можео опустить, т.к. любое соединени по умолчанию является внутренним.
+        Чтобы указать предикат, который будет фильтровать строки использовать инструкцию ON.
+        
+        SELECT E.empid, E.firstname, E.lastname, O.orderid
+        FROM HR.Employees AS E
+            JOIN Sales.Orders AS O
+                ON E.empid = O.empid;
+    
+    Внешние соединения
+        
+        В дополнение к внутреннему добавляет внешние строки.
+        
+        Синтаксис:
+            Ключевое слово JOIN находится между именами таблиц, а условие обозначается инструкцией ON.
+            Используются ключевые слова:
+                LEFT OUTER JOIN
+                RIGHT OUTER JOIN
+                FULL OUTER JOIN
+            
+            Слово OUTER является не обязательным.
+            LEFT, RIGHT означают, что в результат попадают строки из левой / правой таблиц. FULL используется для сохранения строк с обеих сторон.
+            Всем атрибутам, с противоположной стороны, для которых не нашлось соответствия, устанавливается значение NULL.
+            
+        Зарос соединяет таблицы Customers и Orders:
+            SELECT C.custid, C.companyname, O.orderid
+            FROM Sales.Customers AS C
+                LEFT OUTER JOIN Sales.Orders AS O
+                    ON C.custid = O.custid;
+            
+            Это левое внешнее соединение.
+    
+    Множественные внешние соединения
+        
+        
+    
+    Составные соединения
+        Это соединение, предикат которого содержит больше одного атрибута с каждой стороны. Обычно использует составное отношение первичного и внешнего ключей.
+        
+        FROM dbo.Table1 AS T1
+            JOIN dbo.Table2 AS T2
+                ON T1.col1 = T2.col1
+                AND T1.col2 = T2.col2
+        
+    Множественные соединения
+        SELECT C.custid, C.companyname, O.orderid, OD.productid, OD.qty
+        FROM Sales.Customers AS C
+            JOIN Sales.Orders AS O ON C.custid = O.custid
+            JOIN Sales.OrderDetails AS OD ON O.orderid = OD.orderid;
+    
+    
+    
+Фильтрация с использованием метасимволов
+    Оператор LIKE - сообщает СУБД, что следующий шаблон поиска необходимо анализировать с учетом метасимволов, а не искать точные совпадения.
+    
+    Метасимволы:
+        % - найти все вхождения любого символа.
+            SELECT prod_id, prod_name FROM Products WHERE prod_name LIKE 'Fish%'; - найти все товары, названия которых начинаются со слова Fish.
+        
+        _ - используется как знак %, но при этом учитывается не множетво символов, а только один.
+            SELECT prod_id, prod_name FROM Products WHERE prod_name LIKE '__ inch teddy bear';
+        
+        [] - служит для указания набора символов, каждый из которых должен совпадать с искомым значением, в точно указанном месте (в позиции метасимвола).
+            SELECT cust_contact FROM Customers WHERE cust_contact LIKE '[JM]%' ORDER BY cust_contact; - найти всех всех клиентов, имена которых начинаются на буквук J или M.
+
+Конкатенация полей:
+    SELECT vend_name + ' (' + vend_country + ')' FROM Vendors ORDER BY vend_name;
+        В результате вернется имя, хранящееся в столбце vend_name, строка ' (', название страны, хранящееся в столбце vend_country, строка содержащая ')'.
+        
+        Чтобы удалить пробелы, дополняемые до ширины столбца, использовать SQL-функцию RTRIM():
+            SELECT RTRIM(vend_name) + ' (' + RTRIM(vend_country) + ')' FROM Vendors ORDER BY vend_name;
+        
+            RTRIM() обрезает пробелы справа, LTRIM() обрезает пробелы слева, TRIM() обрезает пробелы справа и слева.
+   
+    Псевдонимы
+        Псевдоним - альтернативное имя для поля или значения. Присваиваются с помощью ключевого слова AS.
+        
+        SELECT RTRIM(vend_name) + ' (' + RTRIM(vend_country) + ')' AS vend_title FROM Vendors ORDER BY vend_name;
+    
+    Вычисление математических значений
+        SELECT prod_id, quantity, item_price, quantity*item_price AS expanded_price FROM OrderItems WHERE order_num = 20008;
+        
+        В SQL поддердиваются основные математические операторы.
+
+Функции обработки данных
+    Функции для работы с текстом:
+        UPPER() - преобразует символы в верхний регистр.
+        LEFT() - возвращает символы из левой части строки.
+        
+Итоговые вычисления:
+    COUNT()
+        Подсчитывает число строк.
+        COUNT(*) - для подсчета строк в таблице, независимо от того, сожержат столбцы значения NULL или нет;
+        COUNT(столбец) - для подсчета числа строк, которые имеют значения в указанных столбцах, значения NULL игнорируются.
+
+Подзапросы
+    
+    SELECT cust_name, cust_contact FROM Customers
+    WHERE cust_id IN (
+        SELECT cust_id FROM Orders WHERE order_num IN (
+            SELECT order_num FROM OrderItems WHERE prod_id = 'RGAN01'
+        )
+    );
+    
+    SELECT в подзапросах могут возвращать только один столбец.
+    
+    SELECT cust_name, cust_state,
+        (SELECT COUNT(*) FROM Orders WHERE Orders.cust_id = Customers.cust_id) AS orders
+    FROM Customers
+    ORDER BY cust_name;
+
+
+
+Объединение таблиц
+
+    Объединение по равенству
+
+        SELECT vend_name, prod_name, prod_price
+        FROM Vendors, Products
+        WHERE Vendors.vend_id = Products.vend_id;
+        
+        SELECT prod_name, vend_name, prod_price, quantity
+        FROM OrderItems, Products, Vendors
+        WHERE Products.vend_id = Vendors.vend_id
+            AND OrderItems.prod_id = Products.prod_id
+            AND order_num = 20008;
+    
+    Внутренние объединения
+    
+        SELECT vend_name, prod_name, prod_price
+        FROM Vendors INNER JOIN Products
+        ON Vendors.vend_id = Products.vend_id;
+    
+    Самообъединения
+        
+        Используются псевдонимы для обращения к одной и той же таблице несколько раз в одной инструкции SELECT.
+    
+        SELECT c1.cust_id, c1.cust_name, c1.cust_contact
+        FROM Customers AS c1, Customers AS c2
+        WHERE c1.cust_name = c2.cust_name
+            AND c2.cust_contact = 'Jim Jones';
+    
+    Естественные объединения
+        
+        Удаляет многократные вхождения и в результате возвращается только один столбец. Извлекаются только неповторяющиеся столбцы.
+        
+        SELECT C.*, O.order_num, O.order_date, OI.prod_id, OI.quantity, OI.item_price
+        FROM Customers AS C, Orders AS O, OrderItems AS OI
+        WHERE C.cust_id = O.cust_id
+            AND OI.order_num = O.order_num
+            AND prod_id = 'RGAN01';
+        
+    Внешние объединения
