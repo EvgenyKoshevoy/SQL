@@ -310,44 +310,108 @@ JOIN
     ORDER BY cust_name;
 
 
-
-Объединение таблиц
-
-    Объединение по равенству
-
-        SELECT vend_name, prod_name, prod_price
-        FROM Vendors, Products
-        WHERE Vendors.vend_id = Products.vend_id;
-        
-        SELECT prod_name, vend_name, prod_price, quantity
-        FROM OrderItems, Products, Vendors
-        WHERE Products.vend_id = Vendors.vend_id
-            AND OrderItems.prod_id = Products.prod_id
-            AND order_num = 20008;
+Изменение данных
     
-    Внутренние объединения
-    
-        SELECT vend_name, prod_name, prod_price
-        FROM Vendors INNER JOIN Products
-        ON Vendors.vend_id = Products.vend_id;
-    
-    Самообъединения
+    Добавление данных
         
-        Используются псевдонимы для обращения к одной и той же таблице несколько раз в одной инструкции SELECT.
+        Команды:
+            INSERT VALUES
+            INSERT SELECT
+            EXEC SELECT
+            SELECT INTO
+            BULK INSERT
+        
+        INSERT VALUES
+            Используется для добавления строк, основанных на заданных значениях.
+            
+            INSERT INTO dbo.Orders(orderid, orderdate, empid, custid) VALUES (10001, '20090212', 3, 'A');
+            
+            Позволяется указывать через запятую сразу несколько строк:
+                INSERT INTO dbo.Orders (orderid, orderdate, empid, custid)
+                VALUES
+                    (10003, '20090213', 4, 'B'),
+                    (10004, '20090214', 1, 'A'),
+                    (10005, '20090215', 1, 'C'),
+                    (10006, '20090215', 3, 'C');
+        
+        INSERT SELECT
+            Добавляет в таблицу набор строк, полученных в результате выборки.
+            
+            INSERT INTO dbo.Orders(orderid, orderdate, empid, custid)
+            SELECT orderid, orderdate, empid, custid
+            FROM Sales.Orders
+            WHERE shipcountry = 'Великобритания';
+        
+        INSERT EXEC
+            Для добавления в таблицу строк, возвращаемых хранимыми процедурами или динамическими пакетами.
+            
+            INSERT INTO dbo.Orders(orderid, orderdate, empid, custid)
+                EXEC Sales.usp_getorders @country = 'Франция';
+        
+        SELECT INTO
+            Создает целевую таблицу и заполняет ее результирующим набором, который возвращается запросом. Поддерживается только языком T-SQL.
+            Нельзя использовать для добавления данных в уже имеющиеся таблицы.
+            
+            Синтаксис:
+                INTO <имя_целевой_таблицы>
+                Должна быть указана непосредственно перед инструкцией FOR того запроса, который генерирует результирующий набор.
+                
+                Следующий код создает таблицу dbo.Orders и копирует в нее все содержимое таблицы Sales.Orders:
+                
+                SELECT orderid, orderdate, empid, custid
+                INTO dbo.Orders FROM Sales.Orders;
+            
+            Командой игнорируются: ограничения, индексы, триггеры и разрешения.
     
-        SELECT c1.cust_id, c1.cust_name, c1.cust_contact
-        FROM Customers AS c1, Customers AS c2
-        WHERE c1.cust_name = c2.cust_name
-            AND c2.cust_contact = 'Jim Jones';
+    Удаление данных
+        
+        DELETE
+            
+            Воспринимает только две инструкции: FROM и WHERE.
+            
+            DELETE FROM dbo.Orders WHERE orderdate < '20070101';
+        
+        TRUNCATE
+            
+            Удаляет из таблицы все ее содержимое. Не поддерживает никаких фильтров.
+            
+            TRUNCATE TABLE dbo.T1;
+            
+            Работает быстрее DELETE, является полностью транзакционной, можно сделать ROLLBACK.
+            Сбрасывает содержимое свойства identity к его исходному состоянию.
+            Нельзя применять к таблицам, на которые ссылается внешний ключ.
+        
+        DELETE с JOIN
+            
+            Удалить заказы, размещенные американскими клиентами:
+            
+            DELETE FROM O
+            FROM dbo.Orders AS O
+                JOIN dbo.Customers AS C
+                    ON O.custid = C.custid
+            WHERE C.country = N'США';
     
-    Естественные объединения
+    Обновление данных
         
-        Удаляет многократные вхождения и в результате возвращается только один столбец. Извлекаются только неповторяющиеся столбцы.
+        UPDATE dbo.OrderDetails
+            SET discount = discount + 0.05
+        WHERE productid = 51; /* Увеличить скидку для продукта под номером 51 на 5% */
         
-        SELECT C.*, O.order_num, O.order_date, OI.prod_id, OI.quantity, OI.item_price
-        FROM Customers AS C, Orders AS O, OrderItems AS OI
-        WHERE C.cust_id = O.cust_id
-            AND OI.order_num = O.order_num
-            AND prod_id = 'RGAN01';
+        Поддерживаемые операторы:
+            +=  с суммированием
+            -=  с вычитанием
+            *=  с умножением
+            /=  с делением
+            %=  присваивание по модулю
+            
         
-    Внешние объединения
+        UPDATE с JOIN
+        
+            Увеличить скидку на 5% для всех заказов, размещенных клиентом под номером 1.
+            
+            UPDATE OD
+                SET discount += 0.05
+            FROM dbo.OrderDetails AS OD
+                JOIN dbo.Orders AS OD
+                    ON OD.orderid = O.orderid
+            WHERE O.custid = 1;
