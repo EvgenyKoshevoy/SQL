@@ -529,3 +529,189 @@ JOIN
             - Делать транзакции как можно более короткими, вынося за их рамки те операции, которые с логической точки зрения не являются частью единого целого.
             - Обращаться к базам в одном порядке.
             - Выбирать подходящий режим уровня изоляции.
+            
+Пользовательские функции
+    
+    Инкапсулируют код, предназначенный для вычисления и возвращения определенного результата, с возможностью использования входящих параметров.
+    
+    Любую функцию можно разместить внутри запроса, вместо скалярного выражения,  в рамках инструкции FROM.
+    
+    Не способны  изменять структуру или соддержимое БД.
+
+Хранимые процедуры
+
+    Это набор из нескольких инструкций, сохраненный для последующего выполнения.
+    Поддерживают входящие и исходящие параметры, могу твозвращать результирующие наборы и вызывать код, который имеет побочные эффекты.
+    
+    Преимущества:
+        - Инкапсуляция логики. Изменения, которые вносятся в реализацию хранимой процедуры, производятся в одном месте, но доступны для всех ее пользователей.
+        - Улучшенное управление безопасностью. Можно выдавать полномочия на выполнение всей процедуры целиком.
+        - Возможность обработки ошибок и принятие необходимых мер внутри самой процедуры.
+    
+    CREATE PROC Sales.GetCustomerOrders
+	@custid AS INT,
+	@fromdate AS DATETIME = '19000101',
+	@todate AS DATETIME = '99991231',
+	@numrows AS INT OUTPUT
+    AS
+    SET NOCOUNT ON;
+
+    SELECT orderid, custid, empid, orderdate
+    FROM Sales.Orders
+    WHERE custid = @custid
+        AND orderdate >= @fromdate
+        AND orderdate < @todate;
+
+    SET @numrows = @@rowcount;
+    
+    Воспользоваться процедурой:
+        
+        DECLARE @rc AS INT;
+
+        EXEC Sales.GetCustomerOrders
+            @custid = 1,
+            @fromdate = '20070101',
+            @todate = '20080101',
+            @numrows = @rc OUTPUT;
+
+            SELECT @rc AS numrows;
+
+Отличия процедур и функций
+
++---------------------------------+----------------------------------------+
+| Stored Procedure (SP)           | Function (UDF - User Defined           |
+|                                 | Function)                              |
++---------------------------------+----------------------------------------+
+| SP can return zero , single or  | Function must return a single value    |
+| multiple values.                | (which may be a scalar or a table).    |
++---------------------------------+----------------------------------------+
+| We can use transaction in SP.   | We can't use transaction in UDF.       |
++---------------------------------+----------------------------------------+
+| SP can have input/output        | Only input parameter.                  |
+| parameter.                      |                                        |
++---------------------------------+----------------------------------------+
+| We can call function from SP.   | We can't call SP from function.        |
++---------------------------------+----------------------------------------+
+| We can't use SP in SELECT/      | We can use UDF in SELECT/ WHERE/       |
+| WHERE/ HAVING statement.        | HAVING statement.                      |
++---------------------------------+----------------------------------------+
+| We can use exception handling   | We can't use Try-Catch block in UDF.   |
+| using Try-Catch block in SP.    |                                        |
++---------------------------------+----------------------------------------+
+
+Триггеры
+    
+    Специальный вид хранимых процедур, который нельзя вызвать вручную.
+    Срабатывает и запускает свой код в момент, когда происходит определенное событие.
+    
+    SQL Server поддерживает два вида событий:
+        - с операциями DML (например INSERT)
+        - с операциями DDL (например CREATE TABLE)
+        
+        DML-триггеры
+            
+            Могут срабатывать либо после завершения соответствующего события, либо вместо него.
+            Таблицы, изменения в которых приводят к срабатыванию триггера иногда помечают словами inserted или deleted.
+            
+            Создание триггера:
+                CREATE TRIGGER trg_T1_insert_audit ON dbo.T1 AFTER INSERT
+                AS
+                SET NOCOUNT ON;
+                
+                INSERT INTO dbo.T1_Audit(keycol, datacol)
+                    SELECT keycol, datacol FROM inserted;
+                GO
+        
+        DDL-триггеры
+            
+            Могут использоваться для таких задач как проверка и управление процессом изменения данных, соблюдение различных правил и т.д.
+            Срабатывают только после определенного события.
+            
+            EVENTDATA
+                Позволяет получить информацию внутри триггера о том, как он был вызван.
+            
+            С помощью выражений XQuery извлекаются разлиыне атрибуты (время возникновения, тип и имя пользователя).
+            
+            Создание триггера:
+                
+                CREATE TRIGGER trg_audit-ddl-events
+                    ON DATABASE FOR DDL_DATABASE_LEVEL_EVENTS
+                AS
+                SET NOCOUNT ON;
+                
+                DECLARE @evendata AS XML = eventdata();
+                
+                INSERT INTO dbo.AuditDDLEvents (
+                    posttime, eventtype,loginname, schemaname, objectname, targetobjectname, eventdata)
+                    VALUES(
+                        @eventdata.value('(/EVENT_INSTANCE/PostTime) [1]', 'VARCHAR(23)'),
+                        @eventdata.value('(/EVENT_INSTANCE/EventType) [1]', 'SYSNAME'),
+                        @eventdata.value('(/EVENT_INSTANCE/LoginName) [1]', 'SYSNAME'),
+                        @eventdata.value('(/EVENT_INSTANCE/SchemaName)[1]', 'SYSNAME'),
+                        @eventdata.value('(/EVENT_INSTANCE/ObjectName)[1]', 'SYSNAME'),
+                        @eventdata.value('(/EVENT_INSTANCE/TargetObjectName)[1]', 'SYSNAME'),
+                        @eventdata);
+                GO
+    
+    Если триггер сработал по команде из транзакции, то сам триггер тоде будет считаться частью транзакции. Если внутри него вызвать ROLLBACK TRAN то все действия триггера отменятся.
+    
+Первичные ключи
+    
+    Это особое ограничение для значений в столбце, чтобы они были уникальными и никогда не изменялись.
+    
+    Условия:
+        - строки не должны иметь одно и то же значение;
+        - каждая строка долдна иметь какое-то значение (NOT NULL);
+        - столбец первичного ключа не модет быть модифицирован или обновлен;
+        - значения первичного ключа не могут быть использованы повторно.
+    
+    Способы задания:
+        
+        CREATE TABLE Vendors
+        (
+            vend_id CHAR(10) NOT NULL PRIMARY KEY,
+            vend_name CHAR(50) NOT NULL,
+            ...
+        );
+        
+        ALTER TABLE Vendors
+        ADD CONSTRAINT PRIMARY KEY(vend_id);
+
+Внешние ключи
+    
+    Это столбец одной таблицы, значения которого совпадают со значениями столбца, являющегося первичным ключом другой таблицы.
+    
+    Способы задания:
+        
+        CREATE TABLE Orders
+        (
+            order_num INTEGER NOT NULL PRIMARY KEY,
+            ...
+            cust_id CHAR(10) NOT NULL REFERENCES Customers(cust_id);
+        );
+        
+        ALTER TABLE Orders
+        ADD CONSTRAINT
+        FOREIGN KEY (cust_id) REFERENCES Customers (cust_id);
+
+Ограничения уникальности (UNIQUE)
+    
+    Отличия от primary key:
+        - таблица может содержать множество ограничений уникальности, но у нее должен быть только один первичный ключ.
+        - столбцы UNIQUE могут содержать NULL.
+        - столбцы UNIQUE можно модифицировать и обновлять.
+        - значения столбцов UNIQUE можно использовать повторно.
+        - столбцы UNIQUE не могут быть использованы для определения первичных ключей.
+
+Индексы
+    
+    Предназначены для логической сортировки хранимых данных.
+    
+    Особенности:
+        - повышают чтение и извлечение данных, замедляют дбавление, обновление и удаление строк.
+        - требует дополнительного места на диске.
+        - в качестве индекса можно определить несколько столбцов.
+    
+    Создание:
+        CREATE INDEX prod_name_ind
+        ON Produxts(prod_name);
