@@ -1,0 +1,8 @@
+Очистить таблицу:
+	DELETE FROM схема.таблица;
+
+Создать стоблец в таблице:
+	ALTER TABLE products.product ADD COLUMN product_is_on_price integer NOT NULL;
+	
+	
+	product_is_on_price
